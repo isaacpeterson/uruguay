@@ -4,27 +4,30 @@ initialise_user_global_params <- function(){
   
   global_params$simulation_folder = paste0(path.expand('~'), '/offset_data/uruguay/')
   
-  global_params$feature_raster_files = paste0(global_params$simulation_folder, 'uruguay_data/ecosystem_services/', 
-                                              list.files(path = paste0(global_params$simulation_folder, 'uruguay_data/ecosystem_services/'), 
+  global_params$feature_raster_files = paste0(global_params$simulation_folder, 'uruguay_data/raster_tiff/ecosystem_services/', 
+                                              list.files(path = paste0(global_params$simulation_folder, 'uruguay_data/raster_tiff/ecosystem_services/'), 
                                                          all.files = FALSE, full.names = FALSE, recursive = FALSE, ignore.case = FALSE,
                                                          include.dirs = FALSE, no.. = FALSE, pattern = '.tif'))
   
-  global_params$use_simulated_data = FALSE
-  
-  global_params$save_output_raster = TRUE
-  
+  global_params$planning_units_raster = '~/offset_data/uruguay/uruguay_data/raster_tiff/parcelas_uy.tif'
   global_params$number_of_cores = 'all'
   
   # The number of realizations to run
   global_params$realisation_num = 1
   
-  # Makes a single pdf at the end of the simulation showing the locatons of all offsets
-  global_params$write_offset_layer = FALSE
-  
-  # Create an animation of the outputs
-  global_params$write_movie = FALSE
-  
   global_params$save_simulation_outputs = TRUE
+  
+  global_params$overwrite_site_characteristics = TRUE
+  global_params$store_zeros_as_sparse = TRUE
+  global_params$run_from_simulated_data = FALSE
+  global_params$save_simulation_outputs = TRUE
+  global_params$overwrite_unregulated_probability_list = FALSE
+  global_params$overwrite_dev_probability_list = FALSE
+  global_params$overwrite_offset_probability_list = FALSE
+  global_params$overwrite_management_dynamics = TRUE
+  global_params$overwrite_feature_dynamics = TRUE
+  global_params$overwrite_condition_classes = TRUE
+  global_params$overwrite_site_features = TRUE
   
   return(global_params)
 }
@@ -66,17 +69,18 @@ initialise_user_simulation_params <- function(){
   simulation_params = list()
   
   # what subset of features to use in the simulation
-  simulation_params$features_to_use_in_simulation = 1:6
+  simulation_params$features_to_use_in_simulation = 1
   
   simulation_params$transform_params = array(1, length(simulation_params$features_to_use_in_simulation))
   # The total number of layers to use in the offset calcuation (iterating from the start)
-  simulation_params$features_to_use_in_offset_calc = 1:6
+  simulation_params$features_to_use_in_offset_calc = simulation_params$features_to_use_in_simulation
   
-  simulation_params$features_to_use_in_offset_intervention = 1:6
+  simulation_params$features_to_use_in_offset_intervention = simulation_params$features_to_use_in_simulation
   
   simulation_params$use_offset_metric = TRUE
   
-  simulation_params$time_steps = 50
+  simulation_params$time_steps = 5
+  simulation_params$intervention_num = 5
   
   # The maximum number of parcels can be selected to offset a single development
   
@@ -86,15 +90,16 @@ initialise_user_simulation_params <- function(){
   simulation_params$limit_offset_restoration = TRUE
   
   # The probability per parcel of it being unregulatedly cleared, every parcel gets set to this number - set to zero to turn off
-  simulation_params$unregulated_loss_prob = 0.01
+  simulation_params$unregulated_loss_prob = 0.001
   
   # Exclude parcels with less than this number of pixels.
-  simulation_params$site_screen_size = 100
-  
-  simulation_params$intervention_num = 500
+  simulation_params$min_site_screen_size = 100
+  # ignore parcels with size below this number of elements 
+  simulation_params$max_site_screen_size_quantile = 0.95
+
   
   # when the interventions are set to take place, in this case force to occur once per year
-  simulation_params$intervention_vec = generate_stochastic_intervention_vec(time_steps = simulation_params$time_steps, 
+  simulation_params$intervention_vec = build_stochastic_intervention(time_steps = simulation_params$time_steps, 
                                                                             intervention_start = 1, 
                                                                             intervention_end = simulation_params$time_steps, 
                                                                             intervention_num = simulation_params$intervention_num, 
@@ -165,8 +170,6 @@ initialise_user_feature_params <- function(){
   feature_params$background_dynamics_type = 'site_scale'
   feature_params$management_dynamics_type = 'site_scale'
   feature_params$scale_features = FALSE
-  feature_params$unique_site_vals = TRUE
-  feature_params$unique_site_modes = TRUE
   
   feature_params$site_sample_type = 'trunc_norm'
   feature_params$initial_site_sd = 0.05
@@ -238,7 +241,7 @@ initialise_user_output_params <- function(){
   output_params$output_plot_folder = vector()
   output_params$plot_type = 'impacts' # can be 'outcomes'  or 'impacts' or 'none'
   output_params$realisation_num = 'all' # 'all' or number to plot
-  output_params$write_pdf = FALSE
+  output_params$write_pdf = TRUE
   
   output_params$plot_site = TRUE
   output_params$plot_program = TRUE
@@ -246,11 +249,10 @@ initialise_user_output_params <- function(){
   output_params$plot_offset_metric = TRUE
   
   output_params$scenario_vec = 'all' #c(1,4,7,10, 8, 2,3,5,6,9,11,12 ) #1:12
-  output_params$output_plot = TRUE # can be set to 'plot' or 'file'
-  output_params$output_csv_file = FALSE # can be set to 'plot' or 'file'
+
   output_params$plot_subset_type = 'all' #c('offset_action_type') # 'offset_calc_type', 'offset_action_type', offset_time_horizon'
   output_params$plot_subset_param = 'all' #c('maintain') # 'net_gains', 'restore', 15
-  output_params$features_to_plot = 1:10
+  output_params$features_to_plot = 1:6
   output_params$print_dev_offset_sites = FALSE
   output_params$sets_to_plot = 10
   output_params$site_outcome_plot_lims_set = list(c(0, 1e2))

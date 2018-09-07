@@ -1,4 +1,3 @@
-rm(list = ls())
 library(SDMTools)
 library(raster)
 library(rgdal) # loads sp package
@@ -8,19 +7,19 @@ library(abind)
 library(pixmap)
 library(offsetsim)
 
-bin_raster <- function(current_raster, current_filename, shape_data_files, agg_factor){
-  current_raster[is.na(current_raster)] = 0
+bin_raster <- function(current_feature_raster, current_filename, shape_data_files, agg_factor){
+  current_feature_raster[is.na(current_feature_raster)] = 0
   
   if (current_filename %in% shape_data_files){
-    current_raster = aggregate(current_raster, fact = agg_factor, fun = modal)
+    current_feature_raster = aggregate(current_feature_raster, fact = agg_factor, fun = modal)
   } else {
-    current_raster = aggregate(current_raster, fact = agg_factor, fun = mean)
+    current_feature_raster = aggregate(current_feature_raster, fact = agg_factor, fun = mean)
   }
-  return(current_raster)
+  return(current_feature_raster)
 }
 
 
-write_rds_layers_from_asc <- function(output_data_folder, data_folder, asc_data_filenames, shape_data_files, agg_factor){
+convert_asc_to_raster <- function(output_data_folder, data_folder, asc_data_filenames, shape_data_files, agg_factor){
   
   if (!file.exists(output_data_folder)){
     dir.create(output_data_folder)
@@ -29,13 +28,15 @@ write_rds_layers_from_asc <- function(output_data_folder, data_folder, asc_data_
   for (file_ind in seq_along(asc_data_filenames)){
     
     current_filename = asc_data_filenames[file_ind]
-    current_raster = raster(paste0(data_folder, current_filename))
+    current_feature_raster = raster(paste0(data_folder, current_filename))
+    
     if (agg_factor > 1){
-      current_raster <- bin_raster(current_raster, current_filename, shape_data_files, agg_factor)
+      current_feature_raster <- bin_raster(current_feature_raster, current_filename, shape_data_files, agg_factor)
     }
     
-    raster_array <- raster_to_array(current_raster)
-    saveRDS(raster_array, paste0(output_data_folder, gsub('.asc', '', current_filename), '.rds'))
+    current_filename = paste0(output_data_folder, gsub('.asc', '', current_filename), '.tif')
+    writeRaster(current_feature_raster, current_filename, overwrite = TRUE)
+    
     removeTmpFiles(h = 0)
     print(file_ind)
   }
@@ -44,48 +45,43 @@ write_rds_layers_from_asc <- function(output_data_folder, data_folder, asc_data_
 
 simulation_inputs_folder = paste0(path.expand('~'), '/offset_data/uruguay/simulation_inputs/')
 data_folder = '~/offset_data/uruguay/uruguay_data/'
+output_data_folder = '~/offset_data/uruguay/uruguay_data/raster_tiff/species_features/'
+
 asc_data_filenames <- list.files(path = paste0(data_folder, 'uruguay_raw_data/'), pattern = '.asc', all.files = FALSE, 
                                  full.names = FALSE, recursive = FALSE, ignore.case = FALSE, 
                                  include.dirs = FALSE, no.. = FALSE)
-
+shape_data_files = vector()
 data_characteristics <- as.list(read.csv(file=paste0(data_folder, 'group_defs.csv'), header=TRUE, sep=","))
 names(data_characteristics) = c('group_index', 'group', 'filename')
 group_characteristics = as.list(table(data_characteristics$group))
 total_group_names = c(unique(as.vector(data_characteristics$group)), 'misc')
 
-
-feature_type = 'ecosystem_services' # suitable_for_crops_&_forestry, 
+feature_type = 'species' # suitable_for_crops_&_forestry, 
 group_names_to_use = feature_type #c('amphibians', 'birds', 'plants', 'mammals', 'fish', 'ecoregions', 'landscape_units', 'Spp_VU_CC')
-write_rds_layers = FALSE
+convert_asc_layers = TRUE
+
 build_site_characteristics = FALSE
 overwrite_simulation_inputs = FALSE
 save_current_layers = FALSE
-write_layers_to_pdf = TRUE
-write_group_to_pdf = FALSE
 agg_factor = 1
-ecoservice_group_types = c('agua', 'amort', 'calidad', 'clima', 'enferm', 'genet') #(drinking water, , climactic regulation, , genetic resources)
-
 
 
 if (build_site_characteristics == TRUE){
   LGA_raster = load_rasters("~/offset_data/uruguay/uruguay_data/uruguay_raw_data/parcelas_uy.asc", features_to_use = 'all')
   LGA_array = raster_to_array(LGA_raster)
-  site_characteristics <- LGA_to_parcel_list(LGA_array)
+  site_characteristics <- build_site_characteristics(LGA_array)
   objects_to_save$site_characteristics <- site_characteristics
 } else {
   site_characteristics = readRDS(paste0(simulation_inputs_folder, 'site_characteristics.rds'))
 }
 
 
-features_to_use = which(!is.na(match(data_characteristics$group, feature_type)))
-
-datalist_filenames = data_characteristics$filename[features_to_use]
-
-feature_rasters = load_rasters(paste0(data_folder, 'uruguay_raw_data/', datalist_filenames), 'all')
-
-feature_layers = lapply(seq_along(features_to_use), function(i) raster_to_array(subset(feature_rasters, i)))
-
 if (feature_type == 'ecosystem_services'){
+  ecoservice_group_types = c('agua', 'amort', 'calidad', 'clima', 'enferm', 'genet') #(drinking water, , climactic regulation, , genetic resources)
+  features_to_use = which(!is.na(match(data_characteristics$group, feature_type)))
+  datalist_filenames = data_characteristics$filename[features_to_use]
+  feature_rasters = load_rasters(paste0(data_folder, 'uruguay_raw_data/', datalist_filenames), 'all')
+  feature_layers = lapply(seq_along(features_to_use), function(i) raster_to_array(subset(feature_rasters, i)))
   
   for (group_ind in seq_along(ecoservice_group_types)){
     current_reduced_group = Reduce('+', feature_layers[grep(pattern = ecoservice_group_types[group_ind], x = datalist_filenames)])
@@ -95,11 +91,16 @@ if (feature_type == 'ecosystem_services'){
     print(paste(ecoservice_group_types[group_ind], 'done'))
   }
   
-} 
+} else {
+  convert_asc_to_raster(output_data_folder, paste0(data_folder, 'uruguay_raw_data/'), asc_data_filenames, shape_data_files, agg_factor)
+}
 
+euclidean_distance <- function(p,q){
+  sqrt(sum((p - q)^2))
+}
 
-# 
-# 
+outer(mat1,mat2, Vectorize(euclidean_distance))
+
 # group_inds_to_use = match(group_names_to_use, names(group_characteristics))
 # 
 # current_group_characteristics = group_characteristics[group_inds_to_use]
